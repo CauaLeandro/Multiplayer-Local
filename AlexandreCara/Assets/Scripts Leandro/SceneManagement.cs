@@ -9,5 +9,10 @@ public class PlayerDeath : MonoBehaviour
         {
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
+
+        if (collision.gameObject.CompareTag("Portal"))
+        {
+            SceneManager.LoadScene("Scene 2");
+        }
     }
 }
