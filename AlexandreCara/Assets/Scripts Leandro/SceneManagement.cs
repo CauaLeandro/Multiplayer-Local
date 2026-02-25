@@ -15,5 +15,10 @@ public class SceneManagement : MonoBehaviour
         {
             SceneManager.LoadScene("Scene 2");
         }
+
+        if (collision.gameObject.CompareTag("Portal2"))
+        {
+            SceneManager.LoadScene("Menu");
+        }
     }
 }
