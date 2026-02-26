@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 //--------------------------------------------------------------------
 //GroundedCharacterController is an CharacterControllerBase which implements the core of a platforming character.
@@ -21,7 +22,7 @@ public class GroundedCharacterController : CharacterControllerBase
     [SerializeField] bool m_ApplyGravityIntoGroundNormal = false;
     [SerializeField] float m_FrictionConstant = 0.0f;
     [SerializeField] bool m_AlignRotationToGroundedNormal = false;
-//Jumping values
+    //Jumping values
     [SerializeField] float m_JumpVelocity = 0.0f;
     [SerializeField] float m_JumpCutVelocity = 0.0f;
     [SerializeField] float m_MinAllowedJumpCutVelocity = 0.0f;
@@ -37,12 +38,20 @@ public class GroundedCharacterController : CharacterControllerBase
     float m_LastGroundedTime;
     float m_LastTouchingSurfaceTime;
 
+    public string leandroSalsicha;
+
+
     Vector2 m_LastGroundedNormal;
-//Jump event (for other scripts to use when the jump is triggered)
+    //Jump event (for other scripts to use when the jump is triggered)
     public delegate void OnJumpEvent();
     public event OnJumpEvent OnJump;
 
     protected ButtonInput m_JumpInput;
+
+    // Novo: permite configurar, por personagem, qual o nome lógico do input de "Jump" no PlayerInput.
+    // Ex.: para jogador 1 deixe "Jump", para jogador 2 use "JumpP2" (deve existir em PlayerInput.m_Inputs).
+    [SerializeField] string m_JumpInputName = "Jump";
+
 
     //Called by Unity upon adding a new component to an object, or when Reset is selected in the context menu. Used here to provide default values.
     //Also used when fixing up components using the CharacterFixEditor button
@@ -68,6 +77,9 @@ public class GroundedCharacterController : CharacterControllerBase
         m_JumpAlignedToGroundFactor = 0.0f;
         m_HorizontalJumpBoostFactor = 0.0f;
         m_ResetVerticalSpeedOnJumpIfMovingDown = true;
+
+        // default logical input name
+        m_JumpInputName = "Jump";
     }
 
     //This is called every update to update some controller state not directly related to movement
@@ -82,11 +94,11 @@ public class GroundedCharacterController : CharacterControllerBase
         }
 
         if (m_ControlledCollider.GetSideCastInfo().m_HasHitSide)
-        { 
+        {
             m_LastTouchingSurfaceTime = Time.fixedTime;
         }
         if (m_JumpInput != null)
-        { 
+        {
             if (m_JumpInput.m_WasJustPressed)
             {
                 m_JumpInput.m_WasJustPressed = false;
@@ -175,7 +187,8 @@ public class GroundedCharacterController : CharacterControllerBase
             m_JumpCutPossible = false;
         }
         //After releasing the jump button, if jump can be cut short, do so
-        if (m_JumpCutPossible && !m_JumpInput.m_IsPressed && currentVel.y <= m_MinAllowedJumpCutVelocity)
+        // Segurança: trata m_JumpInput nulo como "não pressionado"
+        if (m_JumpCutPossible && (m_JumpInput == null || !m_JumpInput.m_IsPressed) && currentVel.y <= m_MinAllowedJumpCutVelocity)
         {
             m_JumpCutPossible = false;
             if (currentVel.y > m_JumpCutVelocity)
@@ -207,7 +220,7 @@ public class GroundedCharacterController : CharacterControllerBase
             OnJump();
         }
     }
-    
+
     public void LaunchCharacter(Vector2 a_LaunchVelocity, bool a_OverridePreviousVelocity = true)
     {
         Vector2 newVelocity = m_ControlledCollider.GetVelocity();
@@ -242,19 +255,23 @@ public class GroundedCharacterController : CharacterControllerBase
     public override void SetPlayerInput(PlayerInput a_PlayerInput)
     {
         base.SetPlayerInput(a_PlayerInput);
-        if (a_PlayerInput.GetButton("Jump") != null)
-        { 
-            m_JumpInput = a_PlayerInput.GetButton("Jump");
+        if (a_PlayerInput.GetButton(m_JumpInputName) != null)
+        {
+            m_JumpInput = a_PlayerInput.GetButton(m_JumpInputName);
         }
         else
         {
-            Debug.LogError("Jump input not set up in character input");
+            Debug.LogError("Jump input not set up in character input: " + m_JumpInputName);
         }
+
     }
+
+
 
     public ButtonInput GetJumpInput()
     {
         return m_JumpInput;
+
     }
 
     //Get information about current controller state
@@ -299,14 +316,14 @@ public class GroundedCharacterController : CharacterControllerBase
     }
 
     public float GetInputForceApplyLimit()
-    { 
+    {
         if (m_ControlledCollider.IsGrounded())
         {
             return m_WalkForceApplyLimit;
         }
         else
         {
-           return m_AirForceApplyLimit;
+            return m_AirForceApplyLimit;
         }
     }
 
@@ -340,7 +357,7 @@ public class GroundedCharacterController : CharacterControllerBase
         if (m_ControlledCollider.IsGrounded())
         {
             CGroundedInfo groundedInfo = m_ControlledCollider.GetGroundedInfo();
-            
+
             Vector2 direction = -groundedInfo.GetWalkDirection(a_Velocity); //Opposite direction of velocity
             Vector2 maxFrictionSpeedChange = direction * a_FrictionConstant * Time.fixedDeltaTime;
 
@@ -434,7 +451,7 @@ public class GroundedCharacterController : CharacterControllerBase
                     return "Dangling";
                 }
                 else
-                { 
+                {
                     return "Idle";
                 }
             }
@@ -444,7 +461,7 @@ public class GroundedCharacterController : CharacterControllerBase
             if (m_ControlledCollider.GetVelocity().y > 0)
             {
                 if (DidJustJump())
-                { 
+                {
                     if (Mathf.Abs(m_ControlledCollider.GetVelocity().x) < 0.0001f)
                     {
                         return "JumpStraight";
@@ -474,7 +491,7 @@ public class GroundedCharacterController : CharacterControllerBase
                 }
                 else
                 {
-                    return "FallSide"; 
+                    return "FallSide";
                 }
             }
         }
