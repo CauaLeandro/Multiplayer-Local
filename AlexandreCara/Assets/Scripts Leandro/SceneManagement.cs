@@ -13,7 +13,7 @@ public class SceneManagement : MonoBehaviour
 
         if (collision.gameObject.CompareTag("Portal"))
         {
-            SceneManager.LoadScene("Scene 2");
+            SceneManager.LoadScene("Scene 1");
         }
 
         if (collision.gameObject.CompareTag("Portal2"))

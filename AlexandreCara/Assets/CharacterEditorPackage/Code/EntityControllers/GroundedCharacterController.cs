@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 //--------------------------------------------------------------------
 //GroundedCharacterController is an CharacterControllerBase which implements the core of a platforming character.
@@ -8,10 +9,7 @@ using System.Collections;
 //
 //--------------------------------------------------------------------
 public class GroundedCharacterController : CharacterControllerBase
-
 {
-    [SerializeField] int playerID = 1; // 1 = P1 (Espaço) | 2 = P2 (Enter)
-
     [SerializeField] float m_WalkForce = 0.0f;
     [SerializeField] float m_WalkForceApplyLimit = 0.0f;
     [SerializeField] float m_StoppingForce = 0.0f;
@@ -40,6 +38,9 @@ public class GroundedCharacterController : CharacterControllerBase
     float m_LastGroundedTime;
     float m_LastTouchingSurfaceTime;
 
+    public string leandroSalsicha;
+
+
     Vector2 m_LastGroundedNormal;
     //Jump event (for other scripts to use when the jump is triggered)
     public delegate void OnJumpEvent();
@@ -47,6 +48,13 @@ public class GroundedCharacterController : CharacterControllerBase
 
     protected ButtonInput m_JumpInput;
 
+    // Novo: permite configurar, por personagem, qual o nome lógico do input de "Jump" no PlayerInput.
+    // Ex.: para jogador 1 deixe "Jump", para jogador 2 use "JumpP2" (deve existir em PlayerInput.m_Inputs).
+    [SerializeField] string m_JumpInputName = "Jump";
+
+
+    //Called by Unity upon adding a new component to an object, or when Reset is selected in the context menu. Used here to provide default values.
+    //Also used when fixing up components using the CharacterFixEditor button
     void Reset()
     {
         m_WalkForce = 90.0f;
@@ -69,8 +77,13 @@ public class GroundedCharacterController : CharacterControllerBase
         m_JumpAlignedToGroundFactor = 0.0f;
         m_HorizontalJumpBoostFactor = 0.0f;
         m_ResetVerticalSpeedOnJumpIfMovingDown = true;
+
+        // default logical input name
+        m_JumpInputName = "Jump";
     }
 
+    //This is called every update to update some controller state not directly related to movement
+    //Jump input is cached to allow for tolerances (jumping being recognized as valid just before/after touching a jumpable surface
     protected override void UpdateController()
     {
         bool isGrounded = m_ControlledCollider.IsGrounded();
@@ -92,8 +105,10 @@ public class GroundedCharacterController : CharacterControllerBase
                 m_LastJumpPressedTime = Time.fixedTime;
                 m_JumpInputIsCached = true;
             }
+            //Default jump update (not jumping)
             if (m_JumpInputIsCached)
             {
+                //Jump has not been started in time; jump cancelled
                 if (Time.fixedTime - m_LastJumpPressedTime >= m_JumpCacheTime)
                 {
                     m_JumpInputIsCached = false;
@@ -102,8 +117,11 @@ public class GroundedCharacterController : CharacterControllerBase
         }
     }
 
+    //Default update, used when no movement abilities are valid
+    //Combines input and other forces to update the velocity, then moves the collider using that velocity
     protected override void DefaultUpdateMovement()
     {
+        //Jump cut can also be honored by other movement modules, but that is their decision
         UpdateJumpCut();
 
         if (TryDefaultJump())
@@ -116,8 +134,11 @@ public class GroundedCharacterController : CharacterControllerBase
         fInput = ClampInputVelocity(fInput, currentVel, GetInputForceApplyLimit());
 
         Vector2 fGravity = GetGravity();
+
         Vector2 fDrag = -0.5f * (currentVel.sqrMagnitude) * m_DragConstant * currentVel.normalized;
+
         Vector2 summedF = fInput + fGravity + fDrag;
+
         Vector2 newVel = currentVel + summedF * Time.fixedDeltaTime;
 
         if (m_ControlledCollider.IsGrounded())
@@ -130,11 +151,12 @@ public class GroundedCharacterController : CharacterControllerBase
         m_ControlledCollider.UpdateWithVelocity(newVel);
         TryAligningWithGround();
     }
-
+    //Default jump using this controller's jump values.
     public bool TryDefaultJump()
     {
         if (m_JumpInputIsCached)
         {
+            //Character was grounded or is grounded; jump occurs
             if ((m_ControlledCollider.IsGrounded() || Time.fixedTime - m_LastGroundedTime <= m_GroundedToleranceTime) && !DidJustJump())
             {
                 Vector2 currentVelocity = m_ControlledCollider.GetVelocity();
@@ -155,15 +177,18 @@ public class GroundedCharacterController : CharacterControllerBase
         }
         return false;
     }
-
+    //See if jump height has to be cut short when the jump button is released
     public void UpdateJumpCut()
     {
         Vector2 currentVel = m_ControlledCollider.GetVelocity();
+        //When below jump cut velocity, disable jump cuts.
         if (currentVel.y <= m_JumpCutVelocity && m_ControlledCollider.GetPreviousVelocity().y > m_JumpCutVelocity)
         {
             m_JumpCutPossible = false;
         }
-        if (m_JumpCutPossible && !m_JumpInput.m_IsPressed && currentVel.y <= m_MinAllowedJumpCutVelocity)
+        //After releasing the jump button, if jump can be cut short, do so
+        // Segurança: trata m_JumpInput nulo como "não pressionado"
+        if (m_JumpCutPossible && (m_JumpInput == null || !m_JumpInput.m_IsPressed) && currentVel.y <= m_MinAllowedJumpCutVelocity)
         {
             m_JumpCutPossible = false;
             if (currentVel.y > m_JumpCutVelocity)
@@ -173,7 +198,6 @@ public class GroundedCharacterController : CharacterControllerBase
         }
         m_ControlledCollider.SetVelocity(currentVel);
     }
-
     public void StopJumpCut()
     {
         m_JumpCutPossible = false;
@@ -226,25 +250,31 @@ public class GroundedCharacterController : CharacterControllerBase
             m_ControlledCollider.RotateToAlignWithNormal(Vector3.up);
         }
     }
-
+    //Set player input
+    //Set inputs (by PlayerInput)
     public override void SetPlayerInput(PlayerInput a_PlayerInput)
     {
         base.SetPlayerInput(a_PlayerInput);
-        if (a_PlayerInput.GetButton("Jump") != null)
+        if (a_PlayerInput.GetButton(m_JumpInputName) != null)
         {
-            m_JumpInput = a_PlayerInput.GetButton("Jump");
+            m_JumpInput = a_PlayerInput.GetButton(m_JumpInputName);
         }
         else
         {
-            Debug.LogError("Jump input not set up in character input");
+            Debug.LogError("Jump input not set up in character input: " + m_JumpInputName);
         }
+
     }
+
+
 
     public ButtonInput GetJumpInput()
     {
         return m_JumpInput;
+
     }
 
+    //Get information about current controller state
     public bool DidJustJump()
     {
         return (Time.fixedTime - m_LastJumpTime <= 0.02f + m_GroundedToleranceTime);
@@ -306,9 +336,10 @@ public class GroundedCharacterController : CharacterControllerBase
             return Vector2.zero;
         }
 
-        Vector2 direction = -m_ControlledCollider.GetGroundedInfo().GetWalkDirection(a_Velocity);
+        Vector2 direction = -m_ControlledCollider.GetGroundedInfo().GetWalkDirection(a_Velocity); //Opposite direction of velocity
 
         Vector2 maxForceSpeedChange = direction * a_StoppingForce * Time.fixedDeltaTime;
+
         Vector2 velInDirection = Mathf.Abs(Vector2.Dot(a_Velocity, direction)) * direction;
 
         if (velInDirection.magnitude > maxForceSpeedChange.magnitude)
@@ -327,7 +358,7 @@ public class GroundedCharacterController : CharacterControllerBase
         {
             CGroundedInfo groundedInfo = m_ControlledCollider.GetGroundedInfo();
 
-            Vector2 direction = -groundedInfo.GetWalkDirection(a_Velocity);
+            Vector2 direction = -groundedInfo.GetWalkDirection(a_Velocity); //Opposite direction of velocity
             Vector2 maxFrictionSpeedChange = direction * a_FrictionConstant * Time.fixedDeltaTime;
 
             Vector2 velInDirection = Mathf.Abs(Vector2.Dot(a_Velocity, direction)) * direction;
@@ -364,6 +395,7 @@ public class GroundedCharacterController : CharacterControllerBase
         return new Vector2(GetInputMovement().x, 0);
     }
 
+    //Get constants of this controller
     public float GetWalkForce()
     {
         return m_WalkForce;
@@ -426,7 +458,7 @@ public class GroundedCharacterController : CharacterControllerBase
         }
         else
         {
-            if (Mathf.Abs(m_ControlledCollider.GetVelocity().y) > 0)
+            if (m_ControlledCollider.GetVelocity().y > 0)
             {
                 if (DidJustJump())
                 {
